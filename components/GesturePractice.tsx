@@ -8,14 +8,20 @@ import { useAccessibleLayout } from '@/utils/accessibility';
 
 type GestureName = 'tap' | 'doubleTap' | 'swipe' | 'verticalSwipe' | 'hold' | 'pinchZoomIn' | 'pinchZoomOut';
 
-const gestureOptions: { id: GestureName; labelKey: TranslationKey; symbol: string }[] = [
-  { id: 'tap', labelKey: 'gesture.tab.tap', symbol: '☝' },
-  { id: 'doubleTap', labelKey: 'gesture.tab.doubleTap', symbol: '☝☝' },
-  { id: 'swipe', labelKey: 'gesture.tab.swipe', symbol: '↔' },
-  { id: 'verticalSwipe', labelKey: 'gesture.tab.verticalSwipe', symbol: '↕' },
-  { id: 'hold', labelKey: 'gesture.tab.hold', symbol: '●' },
-  { id: 'pinchZoomIn', labelKey: 'gesture.tab.pinchZoomIn', symbol: '⤢' },
-  { id: 'pinchZoomOut', labelKey: 'gesture.tab.pinchZoomOut', symbol: '⤡' },
+type GestureStep = {
+  id: GestureName;
+  nameKey: TranslationKey;
+  symbol: string;
+};
+
+const gestureSteps: GestureStep[] = [
+  { id: 'tap', nameKey: 'gesture.tab.tap', symbol: '☝' },
+  { id: 'doubleTap', nameKey: 'gesture.tab.doubleTap', symbol: '☝☝' },
+  { id: 'swipe', nameKey: 'gesture.tab.swipe', symbol: '↔' },
+  { id: 'verticalSwipe', nameKey: 'gesture.tab.verticalSwipe', symbol: '↕' },
+  { id: 'hold', nameKey: 'gesture.tab.hold', symbol: '●' },
+  { id: 'pinchZoomIn', nameKey: 'gesture.tab.pinchZoomIn', symbol: '⤢' },
+  { id: 'pinchZoomOut', nameKey: 'gesture.tab.pinchZoomOut', symbol: '⤡' },
 ];
 
 function SuccessMessage({ children, onRetry }: { children: string; onRetry: () => void }) {
@@ -586,43 +592,129 @@ function PinchZoomOutPractice() {
 }
 
 export function GesturePractice() {
-  const [gesture, setGesture] = useState<GestureName>('tap');
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isCompleted, setIsCompleted] = useState(false);
   const { isLargeText } = useAccessibleLayout();
   const { t } = useLanguage();
+
+  const totalSteps = gestureSteps.length;
+  const currentStep = gestureSteps[currentStepIndex];
+
+  const goToNext = () => {
+    if (currentStepIndex < totalSteps - 1) {
+      setCurrentStepIndex(prev => prev + 1);
+    } else {
+      setIsCompleted(true);
+    }
+  };
+
+  const goToPrev = () => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex(prev => prev - 1);
+    }
+  };
+
+  const handleRestart = () => {
+    setCurrentStepIndex(0);
+    setIsCompleted(false);
+  };
+
+  if (isCompleted) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.completedCard}>
+          <View style={styles.completedIconWrapper}>
+            <Text allowFontScaling={false} style={styles.completedIcon}>✓</Text>
+          </View>
+          <Text style={styles.completedTitle} accessibilityRole="header">
+            {t('gesture.completedTitle')}
+          </Text>
+          <Text style={styles.completedText}>
+            {t('gesture.completedText')}
+          </Text>
+          <LargeButton
+            label={t('gesture.restart')}
+            onPress={handleRestart}
+            accessibilityHint={t('gesture.restartHint')}
+            style={styles.restartButton}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.heading} accessibilityRole="header">{t('gesture.heading')}</Text>
       <Text style={styles.intro}>{t('gesture.intro')}</Text>
-      <View style={[styles.tabs, isLargeText && styles.tabsLargeText]} accessibilityRole="tablist">
-        {gestureOptions.map(option => {
-          const active = gesture === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              onPress={() => setGesture(option.id)}
-              style={[styles.tab, isLargeText && styles.tabLargeText, active && styles.tabActive]}
-            >
-              <Text allowFontScaling={false} style={[styles.tabSymbol, active && styles.tabTextActive]}>
-                {option.symbol}
-              </Text>
-              <Text style={[styles.tabLabel, active && styles.tabTextActive]}>
-                {t(option.labelKey)}
-              </Text>
-            </Pressable>
-          );
+
+      <View
+        style={[styles.stepBanner, isLargeText && styles.stepBannerLargeText]}
+        accessible
+        accessibilityRole="summary"
+        accessibilityLabel={t('gesture.progressAccessibility', {
+          current: currentStepIndex + 1,
+          name: t(currentStep.nameKey),
         })}
+      >
+        <View style={styles.stepInfoRow}>
+          <Text style={styles.stepProgressNumber}>
+            {t('gesture.progress', { current: currentStepIndex + 1, total: totalSteps })}
+          </Text>
+          <View style={styles.stepNameBadge}>
+            <Text allowFontScaling={false} style={styles.stepNameSymbol}>{currentStep.symbol}</Text>
+            <Text style={styles.stepNameText}>{t(currentStep.nameKey)}</Text>
+          </View>
+        </View>
+        <View style={styles.progressBarTrack} accessible={false}>
+          {gestureSteps.map((step, idx) => (
+            <View
+              key={step.id}
+              style={[
+                styles.progressBarSegment,
+                idx <= currentStepIndex && styles.progressBarSegmentActive,
+              ]}
+            />
+          ))}
+        </View>
       </View>
+
       <View style={[styles.stage, isLargeText && styles.stageLargeText]}>
-        {gesture === 'tap' ? <TapPractice /> : null}
-        {gesture === 'doubleTap' ? <DoubleTapPractice /> : null}
-        {gesture === 'swipe' ? <SwipePractice /> : null}
-        {gesture === 'verticalSwipe' ? <VerticalSwipePractice /> : null}
-        {gesture === 'hold' ? <HoldPractice /> : null}
-        {gesture === 'pinchZoomIn' ? <PinchZoomInPractice /> : null}
-        {gesture === 'pinchZoomOut' ? <PinchZoomOutPractice /> : null}
+        {currentStep.id === 'tap' ? <TapPractice key="tap" /> : null}
+        {currentStep.id === 'doubleTap' ? <DoubleTapPractice key="doubleTap" /> : null}
+        {currentStep.id === 'swipe' ? <SwipePractice key="swipe" /> : null}
+        {currentStep.id === 'verticalSwipe' ? <VerticalSwipePractice key="verticalSwipe" /> : null}
+        {currentStep.id === 'hold' ? <HoldPractice key="hold" /> : null}
+        {currentStep.id === 'pinchZoomIn' ? <PinchZoomInPractice key="pinchZoomIn" /> : null}
+        {currentStep.id === 'pinchZoomOut' ? <PinchZoomOutPractice key="pinchZoomOut" /> : null}
+      </View>
+
+      <View style={styles.navigationStack}>
+        {currentStepIndex < totalSteps - 1 ? (
+          <LargeButton
+            label={t('gesture.next')}
+            onPress={goToNext}
+            accessibilityHint={t('gesture.nextHint')}
+            style={styles.navButton}
+          />
+        ) : (
+          <LargeButton
+            label={t('gesture.finish')}
+            onPress={goToNext}
+            accessibilityHint={t('gesture.finishHint')}
+            style={styles.navButton}
+          />
+        )}
+
+        {currentStepIndex > 0 ? (
+          <LargeButton
+            label={t('gesture.prev')}
+            secondary
+            onPress={goToPrev}
+            accessibilityHint={t('gesture.prevHint')}
+            style={styles.navButton}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -632,14 +724,16 @@ const styles = StyleSheet.create({
   container: { borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, padding: spacing.md, gap: spacing.sm },
   heading: { color: colors.text, fontSize: 30, lineHeight: 42, fontWeight: '900' },
   intro: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '700' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
-  tabsLargeText: { flexDirection: 'column' },
-  tab: { flexBasis: '31%', flexGrow: 1, minHeight: 70, padding: spacing.xs, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  tabLargeText: { flexBasis: '100%', padding: spacing.md },
-  tabActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  tabSymbol: { color: colors.primary, fontSize: 22, lineHeight: 28, fontWeight: '900' },
-  tabLabel: { color: colors.text, fontSize: 18, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
-  tabTextActive: { color: colors.surface },
+  stepBanner: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.border, gap: spacing.sm },
+  stepBannerLargeText: { padding: spacing.sm },
+  stepInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.xs },
+  stepProgressNumber: { color: colors.primary, fontSize: 20, lineHeight: 28, fontWeight: '900' },
+  stepNameBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.primarySoft, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.md },
+  stepNameSymbol: { color: colors.primary, fontSize: 22, lineHeight: 26, fontWeight: '900' },
+  stepNameText: { color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '900' },
+  progressBarTrack: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  progressBarSegment: { flex: 1, height: 8, borderRadius: radius.round, backgroundColor: colors.border, opacity: 0.4 },
+  progressBarSegmentActive: { backgroundColor: colors.primary, opacity: 1 },
   stage: { marginTop: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, padding: spacing.md },
   stageLargeText: { paddingHorizontal: spacing.sm },
   practiceTitle: { color: colors.text, fontSize: 26, lineHeight: 36, fontWeight: '900', textAlign: 'center' },
@@ -658,7 +752,7 @@ const styles = StyleSheet.create({
   holdSymbol: { color: colors.surface, fontSize: 35, lineHeight: 42 },
   targetLabel: { color: colors.surface, fontSize: 20, lineHeight: 28, fontWeight: '900', textAlign: 'center' },
   helpText: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', textAlign: 'center' },
-  successWrapper: { gap: spacing.sm },
+  successWrapper: { gap: spacing.sm, marginTop: spacing.sm },
   success: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.goldSoft },
   successMark: { width: 34, height: 34, borderRadius: 17, color: colors.surface, backgroundColor: colors.primary, fontSize: 20, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
   successText: { flex: 1, color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '800' },
@@ -684,5 +778,12 @@ const styles = StyleSheet.create({
   pinchButtonRow: { marginTop: spacing.md, alignItems: 'center' },
   zoomActionButton: { minHeight: 56, minWidth: 140, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   zoomActionButtonText: { color: colors.primary, fontSize: 19, lineHeight: 26, fontWeight: '900' },
+  navigationStack: { marginTop: spacing.md, gap: spacing.sm },
+  navButton: { minHeight: 58 },
+  completedCard: { padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', gap: spacing.md },
+  completedIconWrapper: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  completedIcon: { color: colors.surface, fontSize: 40, lineHeight: 68, fontWeight: '900', textAlign: 'center' },
+  completedTitle: { color: colors.text, fontSize: 26, lineHeight: 36, fontWeight: '900', textAlign: 'center' },
+  completedText: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
+  restartButton: { minHeight: 58, width: '100%', marginTop: spacing.sm },
 });
-
