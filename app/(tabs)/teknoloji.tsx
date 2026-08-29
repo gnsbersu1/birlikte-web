@@ -102,8 +102,20 @@ export default function TechnologyScreen() {
 
         if (lesson.id === 'gestures') {
           return (
-            <View key={lessonId} style={[styles.gestureLessonContainer, !isActive && styles.hiddenLesson]}>
+            <View key={lessonId} style={[styles.directLessonContainer, !isActive && styles.hiddenLesson]}>
               <GesturePractice />
+              <View style={[styles.reassurance, styles.reassuranceBottom, isLargeText && styles.reassuranceLargeText]}>
+                <Text allowFontScaling={false} style={styles.reassuranceMark}>i</Text>
+                <Text style={styles.reassuranceText}>{t('technology.safeNotice')}</Text>
+              </View>
+            </View>
+          );
+        }
+
+        if (lesson.id === 'message') {
+          return (
+            <View key={lessonId} style={[styles.directLessonContainer, !isActive && styles.hiddenLesson]}>
+              <MessagePractice />
               <View style={[styles.reassurance, styles.reassuranceBottom, isLargeText && styles.reassuranceLargeText]}>
                 <Text allowFontScaling={false} style={styles.reassuranceMark}>i</Text>
                 <Text style={styles.reassuranceText}>{t('technology.safeNotice')}</Text>
@@ -128,7 +140,6 @@ export default function TechnologyScreen() {
                   </View>
                 ))}
 
-                {lesson.id === 'message' ? <MessagePractice /> : null}
                 {lesson.id === 'scam' ? (
                   <LargeButton
                     label={t('technology.preparingButton')}
@@ -156,7 +167,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 24, lineHeight: 34, fontWeight: '900' },
   duration: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: spacing.xs },
   startButton: { marginHorizontal: spacing.md, marginBottom: spacing.md },
-  gestureLessonContainer: { marginTop: spacing.md, gap: spacing.md },
+  directLessonContainer: { marginTop: spacing.md, gap: spacing.md },
   hiddenLesson: { display: 'none' },
   reassurance: { marginTop: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.blueSoft, borderWidth: 2, borderColor: colors.blue },
   reassuranceBottom: { marginTop: spacing.md },
