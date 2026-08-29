@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LargeButton } from '@/components/Buttons';
 import { colors, radius, spacing } from '@/constants/theme';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -29,8 +29,8 @@ function SuccessMessage({ children, onRetry }: { children: string; onRetry: () =
   return (
     <View style={styles.successWrapper}>
       <View style={styles.success} accessibilityRole="alert">
-        <Text allowFontScaling={false} style={styles.successMark}>✓</Text>
-        <Text style={styles.successText}>{children}</Text>
+        <Text allowFontScaling={false} selectable={false} style={styles.successMark}>✓</Text>
+        <Text selectable={false} style={styles.successText}>{children}</Text>
       </View>
       <LargeButton
         label={t('gesture.retry')}
@@ -75,8 +75,8 @@ function TapPractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.tap.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.tap.description')}</Text>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.tap.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.tap.description')}</Text>
       <View style={styles.practiceArea}>
         <Animated.View style={{ transform: [{ scale: pulse }] }}>
           <Pressable
@@ -86,15 +86,15 @@ function TapPractice() {
             onPress={complete}
             style={({ pressed }) => [styles.tapTarget, completed && styles.targetCompleted, pressed && styles.targetPressed]}
           >
-            <Text allowFontScaling={false} style={styles.tapSymbol}>{completed ? '✓' : '☝'}</Text>
-            <Text style={styles.targetLabel}>{t(completed ? 'gesture.tap.successTarget' : 'gesture.tap.target')}</Text>
+            <Text allowFontScaling={false} selectable={false} style={styles.tapSymbol}>{completed ? '✓' : '☝'}</Text>
+            <Text selectable={false} style={styles.targetLabel}>{t(completed ? 'gesture.tap.successTarget' : 'gesture.tap.target')}</Text>
           </Pressable>
         </Animated.View>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.tap.success')}</SuccessMessage>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.tap.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.tap.help')}</Text>
       )}
     </View>
   );
@@ -145,8 +145,8 @@ function DoubleTapPractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.doubleTap.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.doubleTap.description')}</Text>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.doubleTap.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.doubleTap.description')}</Text>
       <View style={styles.practiceArea}>
         <Animated.View style={{ transform: [{ scale }] }}>
           <Pressable
@@ -161,10 +161,10 @@ function DoubleTapPractice() {
               pressed && styles.targetPressed,
             ]}
           >
-            <Text allowFontScaling={false} style={styles.doubleTapSymbol}>
+            <Text allowFontScaling={false} selectable={false} style={styles.doubleTapSymbol}>
               {completed ? '✓' : '☝☝'}
             </Text>
-            <Text style={styles.targetLabel}>
+            <Text selectable={false} style={styles.targetLabel}>
               {completed
                 ? t('gesture.doubleTap.successTarget')
                 : tapCount === 1
@@ -173,7 +173,7 @@ function DoubleTapPractice() {
             </Text>
             {!completed ? (
               <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>{tapCount === 1 ? '1 / 2' : '0 / 2'}</Text>
+                <Text selectable={false} style={styles.stepBadgeText}>{tapCount === 1 ? '1 / 2' : '0 / 2'}</Text>
               </View>
             ) : null}
           </Pressable>
@@ -182,7 +182,7 @@ function DoubleTapPractice() {
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.doubleTap.success')}</SuccessMessage>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.doubleTap.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.doubleTap.help')}</Text>
       )}
     </View>
   );
@@ -207,10 +207,11 @@ function SwipePractice() {
 
   const panResponder = useMemo(
     () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 6,
       onPanResponderMove: (_, gesture) => translateX.setValue(Math.max(-105, Math.min(105, gesture.dx))),
       onPanResponderRelease: (_, gesture) => {
-        if (Math.abs(gesture.dx) >= 70) {
+        if (Math.abs(gesture.dx) >= 60) {
           setCompleted(true);
           Animated.sequence([
             Animated.timing(translateX, { toValue: gesture.dx > 0 ? 105 : -105, duration: 160, useNativeDriver: true }),
@@ -232,10 +233,10 @@ function SwipePractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.swipe.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.swipe.description')}</Text>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.swipe.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.swipe.description')}</Text>
       <View style={styles.swipeArea}>
-        <Text allowFontScaling={false} style={styles.edgeArrow}>‹</Text>
+        <Text allowFontScaling={false} selectable={false} style={styles.edgeArrow}>‹</Text>
         <Animated.View
           accessible
           accessibilityRole="adjustable"
@@ -244,16 +245,16 @@ function SwipePractice() {
           style={[styles.swipeCard, completed && styles.targetCompleted, { transform: [{ translateX }] }]}
           {...panResponder.panHandlers}
         >
-          <Text allowFontScaling={false} style={styles.swipeSymbol}>{completed ? '✓' : '☝'}</Text>
-          <Text style={styles.swipeLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.swipe.target')}</Text>
+          <Text allowFontScaling={false} selectable={false} style={styles.swipeSymbol}>{completed ? '✓' : '☝'}</Text>
+          <Text selectable={false} style={styles.swipeLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.swipe.target')}</Text>
         </Animated.View>
-        <Text allowFontScaling={false} style={styles.edgeArrow}>›</Text>
-        {!completed ? <Animated.Text allowFontScaling={false} style={[styles.movingArrow, { transform: [{ translateX: hintX }] }]}>↔</Animated.Text> : null}
+        <Text allowFontScaling={false} selectable={false} style={styles.edgeArrow}>›</Text>
+        {!completed ? <Animated.Text allowFontScaling={false} selectable={false} style={[styles.movingArrow, { transform: [{ translateX: hintX }] }]}>↔</Animated.Text> : null}
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.swipe.success')}</SuccessMessage>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.swipe.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.swipe.help')}</Text>
       )}
     </View>
   );
@@ -264,7 +265,31 @@ function VerticalSwipePractice() {
   const [swipeStep, setSwipeStep] = useState<'up' | 'down'>('up');
   const translateY = useRef(new Animated.Value(0)).current;
   const arrowAnim = useRef(new Animated.Value(0)).current;
+  const containerRef = useRef<View>(null);
   const { t } = useLanguage();
+
+  // Web Safari/Chrome non-passive scroll prevention ONLY within this exercise area
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+
+    const preventScroll = (e: TouchEvent) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    element.addEventListener('touchmove', preventScroll, { passive: false });
+    return () => {
+      element.removeEventListener('touchmove', preventScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -279,19 +304,22 @@ function VerticalSwipePractice() {
 
   const panResponder = useMemo(
     () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6,
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+      onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 4,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(-85, Math.min(85, gesture.dy))),
       onPanResponderRelease: (_, gesture) => {
-        if (swipeStep === 'up' && gesture.dy <= -35) {
-          // Upward swipe step completed (approx 35-40px upward)
+        // approx 30-35px vertical movement is accepted as success
+        if (swipeStep === 'up' && gesture.dy <= -30) {
           Animated.sequence([
             Animated.timing(translateY, { toValue: -80, duration: 150, useNativeDriver: true }),
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
           ]).start(() => {
             setSwipeStep('down');
           });
-        } else if (swipeStep === 'down' && gesture.dy >= 35) {
-          // Downward swipe step completed (approx 35-40px downward)
+        } else if (swipeStep === 'down' && gesture.dy >= 30) {
           setCompleted(true);
           Animated.sequence([
             Animated.timing(translateY, { toValue: 80, duration: 150, useNativeDriver: true }),
@@ -314,11 +342,16 @@ function VerticalSwipePractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.verticalSwipe.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.verticalSwipe.description')}</Text>
-      <View style={styles.verticalSwipeArea}>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.verticalSwipe.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.verticalSwipe.description')}</Text>
+      <View
+        ref={containerRef}
+        style={styles.verticalSwipeArea}
+        {...panResponder.panHandlers}
+      >
         <Animated.Text
           allowFontScaling={false}
+          selectable={false}
           style={[
             styles.verticalBigArrow,
             swipeStep === 'up' ? styles.arrowActive : styles.arrowInactive,
@@ -334,12 +367,11 @@ function VerticalSwipePractice() {
           accessibilityLabel={t('gesture.verticalSwipe.accessibilityLabel')}
           accessibilityHint={t('gesture.verticalSwipe.accessibilityHint')}
           style={[styles.verticalSwipeCard, completed && styles.targetCompleted, { transform: [{ translateY }] }]}
-          {...panResponder.panHandlers}
         >
-          <Text allowFontScaling={false} style={styles.swipeSymbol}>
+          <Text allowFontScaling={false} selectable={false} style={styles.swipeSymbol}>
             {completed ? '✓' : swipeStep === 'up' ? '▲' : '▼'}
           </Text>
-          <Text style={styles.swipeLabel}>
+          <Text selectable={false} style={styles.swipeLabel}>
             {completed
               ? t('gesture.tap.successTarget')
               : swipeStep === 'up'
@@ -348,7 +380,7 @@ function VerticalSwipePractice() {
           </Text>
           {!completed ? (
             <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>
+              <Text selectable={false} style={styles.stepBadgeText}>
                 {swipeStep === 'up' ? '1 / 2 ↑' : '2 / 2 ↓'}
               </Text>
             </View>
@@ -357,6 +389,7 @@ function VerticalSwipePractice() {
 
         <Animated.Text
           allowFontScaling={false}
+          selectable={false}
           style={[
             styles.verticalBigArrow,
             swipeStep === 'down' ? styles.arrowActive : styles.arrowInactive,
@@ -369,9 +402,9 @@ function VerticalSwipePractice() {
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.verticalSwipe.success')}</SuccessMessage>
       ) : swipeStep === 'down' ? (
-        <Text style={styles.stepFeedbackText}>{t('gesture.verticalSwipe.step1Done')}</Text>
+        <Text selectable={false} style={styles.stepFeedbackText}>{t('gesture.verticalSwipe.step1Done')}</Text>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.verticalSwipe.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.verticalSwipe.help')}</Text>
       )}
     </View>
   );
@@ -384,7 +417,29 @@ function HoldPractice() {
   const startPos = useRef<{ x: number; y: number } | null>(null);
   const isHeldRef = useRef(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<View>(null);
   const { t } = useLanguage();
+
+  // Prevent text selection, context menu, and callout on Web/iOS Safari
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+
+    const preventDefaultAction = (e: Event) => {
+      e.preventDefault();
+    };
+
+    element.addEventListener('contextmenu', preventDefaultAction);
+    element.addEventListener('selectstart', preventDefaultAction);
+    return () => {
+      element.removeEventListener('contextmenu', preventDefaultAction);
+      element.removeEventListener('selectstart', preventDefaultAction);
+    };
+  }, []);
 
   const handleTouchStart = (e: any) => {
     if (completed) return;
@@ -394,7 +449,7 @@ function HoldPractice() {
       startPos.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
     }
     progress.setValue(0);
-    Animated.timing(progress, { toValue: 1, duration: 700, useNativeDriver: false }).start();
+    Animated.timing(progress, { toValue: 1, duration: 650, useNativeDriver: false }).start();
 
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     holdTimerRef.current = setTimeout(() => {
@@ -403,15 +458,15 @@ function HoldPractice() {
         setEarlyRelease(false);
         progress.setValue(1);
       }
-    }, 700);
+    }, 650);
   };
 
   const handleTouchMove = (e: any) => {
     if (completed || !isHeldRef.current || !startPos.current || !e.nativeEvent) return;
     const dx = e.nativeEvent.pageX - startPos.current.x;
     const dy = e.nativeEvent.pageY - startPos.current.y;
-    // Tolerate small finger movement up to 20px
-    if (Math.hypot(dx, dy) > 26) {
+    // Tolerate small finger movement and tremor up to 25px
+    if (Math.hypot(dx, dy) > 28) {
       cancelHold();
     }
   };
@@ -441,9 +496,9 @@ function HoldPractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.hold.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.hold.description')}</Text>
-      <View style={styles.practiceArea}>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.hold.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.hold.description')}</Text>
+      <View ref={containerRef} style={styles.practiceArea}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('gesture.hold.accessibilityLabel')}
@@ -453,8 +508,8 @@ function HoldPractice() {
           onTouchMove={handleTouchMove}
           style={({ pressed }) => [styles.holdTarget, completed && styles.targetCompleted, pressed && styles.targetPressed]}
         >
-          <Text allowFontScaling={false} style={styles.holdSymbol}>{completed ? '✓' : '●'}</Text>
-          <Text style={styles.targetLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.hold.target')}</Text>
+          <Text allowFontScaling={false} selectable={false} style={styles.holdSymbol}>{completed ? '✓' : '●'}</Text>
+          <Text selectable={false} style={styles.targetLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.hold.target')}</Text>
           <View style={styles.progressTrack}>
             <Animated.View
               style={[
@@ -468,9 +523,9 @@ function HoldPractice() {
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.hold.success')}</SuccessMessage>
       ) : earlyRelease ? (
-        <Text style={styles.warningGuideText}>{t('gesture.hold.earlyRelease')}</Text>
+        <Text selectable={false} style={styles.warningGuideText}>{t('gesture.hold.earlyRelease')}</Text>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.hold.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.hold.help')}</Text>
       )}
     </View>
   );
@@ -481,7 +536,52 @@ function PinchZoomInPractice() {
   const scale = useRef(new Animated.Value(1)).current;
   const dotSpread = useRef(new Animated.Value(0)).current;
   const initialDistance = useRef<number | null>(null);
+  const containerRef = useRef<View>(null);
   const { t } = useLanguage();
+
+  // Prevent Safari page zoom/gesture events ONLY within this exercise container
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+
+    const preventGesture = (e: any) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length >= 2 && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length >= 2 && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    element.addEventListener('touchstart', handleTouchStart, { passive: false });
+    element.addEventListener('touchmove', handleTouchMove, { passive: false });
+    element.addEventListener('gesturestart', preventGesture, { passive: false });
+    element.addEventListener('gesturechange', preventGesture, { passive: false });
+    element.addEventListener('gestureend', preventGesture, { passive: false });
+
+    return () => {
+      element.removeEventListener('touchstart', handleTouchStart);
+      element.removeEventListener('touchmove', handleTouchMove);
+      element.removeEventListener('gesturestart', preventGesture);
+      element.removeEventListener('gesturechange', preventGesture);
+      element.removeEventListener('gestureend', preventGesture);
+    };
+  }, []);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -511,8 +611,8 @@ function PinchZoomInPractice() {
 
       scale.setValue(Math.min(1.4, Math.max(1, ratio)));
 
-      // Genuine ~12-15% expansion or at least 20px distance increase
-      if (ratio >= 1.13 || delta >= 20) {
+      // Genuine ~10-12% expansion or at least 18px distance increase
+      if (ratio >= 1.10 || delta >= 18) {
         completeZoomIn();
       }
     }
@@ -541,9 +641,10 @@ function PinchZoomInPractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.pinchZoomIn.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.pinchZoomIn.description')}</Text>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.pinchZoomIn.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.pinchZoomIn.description')}</Text>
       <View
+        ref={containerRef}
         style={styles.pinchContainer}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -561,8 +662,8 @@ function PinchZoomInPractice() {
             { transform: [{ scale }] },
           ]}
         >
-          <Text allowFontScaling={false} style={styles.pinchSymbol}>{completed ? '✓' : '⤢'}</Text>
-          <Text style={styles.pinchLabel}>
+          <Text allowFontScaling={false} selectable={false} style={styles.pinchSymbol}>{completed ? '✓' : '⤢'}</Text>
+          <Text selectable={false} style={styles.pinchLabel}>
             {completed ? t('gesture.tap.successTarget') : t('gesture.pinchZoomIn.target')}
           </Text>
 
@@ -574,16 +675,16 @@ function PinchZoomInPractice() {
                   { transform: [{ translateX: Animated.multiply(dotSpread, -1) }] },
                 ]}
               >
-                <Text allowFontScaling={false} style={styles.dotText}>👈</Text>
+                <Text allowFontScaling={false} selectable={false} style={styles.dotText}>👈</Text>
               </Animated.View>
-              <Text allowFontScaling={false} style={styles.dotsCenterArrow}>⇦ ⇨</Text>
+              <Text allowFontScaling={false} selectable={false} style={styles.dotsCenterArrow}>⇦ ⇨</Text>
               <Animated.View
                 style={[
                   styles.fingerDot,
                   { transform: [{ translateX: dotSpread }] },
                 ]}
               >
-                <Text allowFontScaling={false} style={styles.dotText}>👉</Text>
+                <Text allowFontScaling={false} selectable={false} style={styles.dotText}>👉</Text>
               </Animated.View>
             </View>
           ) : null}
@@ -592,7 +693,7 @@ function PinchZoomInPractice() {
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.pinchZoomIn.success')}</SuccessMessage>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.pinchZoomIn.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.pinchZoomIn.help')}</Text>
       )}
     </View>
   );
@@ -603,7 +704,52 @@ function PinchZoomOutPractice() {
   const scale = useRef(new Animated.Value(1.25)).current;
   const dotPinch = useRef(new Animated.Value(24)).current;
   const initialDistance = useRef<number | null>(null);
+  const containerRef = useRef<View>(null);
   const { t } = useLanguage();
+
+  // Prevent Safari page zoom/gesture events ONLY within this exercise container
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+
+    const preventGesture = (e: any) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length >= 2 && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length >= 2 && e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    element.addEventListener('touchstart', handleTouchStart, { passive: false });
+    element.addEventListener('touchmove', handleTouchMove, { passive: false });
+    element.addEventListener('gesturestart', preventGesture, { passive: false });
+    element.addEventListener('gesturechange', preventGesture, { passive: false });
+    element.addEventListener('gestureend', preventGesture, { passive: false });
+
+    return () => {
+      element.removeEventListener('touchstart', handleTouchStart);
+      element.removeEventListener('touchmove', handleTouchMove);
+      element.removeEventListener('gesturestart', preventGesture);
+      element.removeEventListener('gesturechange', preventGesture);
+      element.removeEventListener('gestureend', preventGesture);
+    };
+  }, []);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -634,8 +780,8 @@ function PinchZoomOutPractice() {
       const targetScale = Math.max(0.75, Math.min(1.25, 1.25 * ratio));
       scale.setValue(targetScale);
 
-      // Genuine ~12-15% contraction or at least 20px distance decrease
-      if (ratio <= 0.87 || delta >= 20) {
+      // Genuine ~10-12% contraction or at least 18px distance decrease
+      if (ratio <= 0.90 || delta >= 18) {
         completeZoomOut();
       }
     }
@@ -664,9 +810,10 @@ function PinchZoomOutPractice() {
 
   return (
     <View>
-      <Text style={styles.practiceTitle}>{t('gesture.pinchZoomOut.title')}</Text>
-      <Text style={styles.practiceDescription}>{t('gesture.pinchZoomOut.description')}</Text>
+      <Text selectable={false} style={styles.practiceTitle}>{t('gesture.pinchZoomOut.title')}</Text>
+      <Text selectable={false} style={styles.practiceDescription}>{t('gesture.pinchZoomOut.description')}</Text>
       <View
+        ref={containerRef}
         style={styles.pinchContainer}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -685,8 +832,8 @@ function PinchZoomOutPractice() {
             { transform: [{ scale }] },
           ]}
         >
-          <Text allowFontScaling={false} style={styles.pinchSymbol}>{completed ? '✓' : '⤡'}</Text>
-          <Text style={styles.pinchLabel}>
+          <Text allowFontScaling={false} selectable={false} style={styles.pinchSymbol}>{completed ? '✓' : '⤡'}</Text>
+          <Text selectable={false} style={styles.pinchLabel}>
             {completed ? t('gesture.tap.successTarget') : t('gesture.pinchZoomOut.target')}
           </Text>
 
@@ -698,16 +845,16 @@ function PinchZoomOutPractice() {
                   { transform: [{ translateX: dotPinch }] },
                 ]}
               >
-                <Text allowFontScaling={false} style={styles.dotText}>👉</Text>
+                <Text allowFontScaling={false} selectable={false} style={styles.dotText}>👉</Text>
               </Animated.View>
-              <Text allowFontScaling={false} style={styles.dotsCenterArrow}>⇨ ⇦</Text>
+              <Text allowFontScaling={false} selectable={false} style={styles.dotsCenterArrow}>⇨ ⇦</Text>
               <Animated.View
                 style={[
                   styles.fingerDot,
                   { transform: [{ translateX: Animated.multiply(dotPinch, -1) }] },
                 ]}
               >
-                <Text allowFontScaling={false} style={styles.dotText}>👈</Text>
+                <Text allowFontScaling={false} selectable={false} style={styles.dotText}>👈</Text>
               </Animated.View>
             </View>
           ) : null}
@@ -716,7 +863,7 @@ function PinchZoomOutPractice() {
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.pinchZoomOut.success')}</SuccessMessage>
       ) : (
-        <Text style={styles.helpText}>{t('gesture.pinchZoomOut.help')}</Text>
+        <Text selectable={false} style={styles.helpText}>{t('gesture.pinchZoomOut.help')}</Text>
       )}
     </View>
   );
@@ -755,12 +902,12 @@ export function GesturePractice() {
       <View style={styles.container}>
         <View style={styles.completedCard}>
           <View style={styles.completedIconWrapper}>
-            <Text allowFontScaling={false} style={styles.completedIcon}>✓</Text>
+            <Text allowFontScaling={false} selectable={false} style={styles.completedIcon}>✓</Text>
           </View>
-          <Text style={styles.completedTitle} accessibilityRole="header">
+          <Text selectable={false} style={styles.completedTitle} accessibilityRole="header">
             {t('gesture.completedTitle')}
           </Text>
-          <Text style={styles.completedText}>
+          <Text selectable={false} style={styles.completedText}>
             {t('gesture.completedText')}
           </Text>
           <LargeButton
@@ -786,14 +933,14 @@ export function GesturePractice() {
         })}
       >
         <View style={styles.stepInfoRow}>
-          <Text style={styles.stepProgressNumber}>
+          <Text selectable={false} style={styles.stepProgressNumber}>
             {t('gesture.progressTitle', {
               current: currentStepIndex + 1,
               total: totalSteps,
               name: t(currentStep.nameKey),
             })}
           </Text>
-          <Text allowFontScaling={false} style={styles.stepSymbolBadge}>
+          <Text allowFontScaling={false} selectable={false} style={styles.stepSymbolBadge}>
             {currentStep.symbol}
           </Text>
         </View>
@@ -865,13 +1012,29 @@ const styles = StyleSheet.create({
   stageLargeText: { paddingHorizontal: spacing.sm },
   practiceTitle: { color: colors.text, fontSize: 26, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
   practiceDescription: { color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '700', textAlign: 'center', marginTop: spacing.xs },
-  practiceArea: { minHeight: 185, alignItems: 'center', justifyContent: 'center' },
+  practiceArea: {
+    minHeight: 185,
+    alignItems: 'center',
+    justifyContent: 'center',
+    userSelect: 'none',
+  },
   tapTarget: { width: 172, minHeight: 138, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   doubleTapTarget: { width: 184, minHeight: 144, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   doubleTapFirstActive: { borderColor: colors.goldSoft, backgroundColor: colors.gold },
   stepBadge: { marginTop: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.round, backgroundColor: 'rgba(0,0,0,0.3)' },
   stepBadgeText: { color: colors.surface, fontSize: 16, fontWeight: '900' },
-  holdTarget: { width: 195, minHeight: 150, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  holdTarget: {
+    width: 195,
+    minHeight: 150,
+    borderRadius: radius.lg,
+    backgroundColor: colors.blue,
+    borderWidth: 4,
+    borderColor: colors.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    userSelect: 'none',
+  },
   targetPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   targetCompleted: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
   tapSymbol: { color: colors.surface, fontSize: 38, lineHeight: 46 },
@@ -892,14 +1055,28 @@ const styles = StyleSheet.create({
   swipeLabel: { color: colors.surface, fontSize: 19, lineHeight: 26, fontWeight: '900', textAlign: 'center' },
   edgeArrow: { color: colors.primary, fontSize: 46, fontWeight: '600' },
   movingArrow: { position: 'absolute', bottom: 4, alignSelf: 'center', left: '44%', color: colors.coral, fontSize: 28, fontWeight: '900' },
-  verticalSwipeArea: { minHeight: 220, overflow: 'hidden', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.xs },
+  verticalSwipeArea: {
+    minHeight: 220,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    userSelect: 'none',
+  },
   verticalSwipeCard: { width: '88%', maxWidth: 230, minHeight: 112, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
   verticalBigArrow: { fontSize: 32, lineHeight: 36, fontWeight: '900' },
   arrowActive: { color: colors.coral, opacity: 1 },
   arrowInactive: { color: colors.primary, opacity: 0.3 },
   progressTrack: { width: '85%', height: 10, overflow: 'hidden', borderRadius: radius.round, backgroundColor: 'rgba(255,255,255,0.42)', marginTop: spacing.xs },
   progressFill: { height: '100%', borderRadius: radius.round, backgroundColor: colors.goldSoft },
-  pinchContainer: { minHeight: 260, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, overflow: 'hidden' },
+  pinchContainer: {
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    overflow: 'hidden',
+    userSelect: 'none',
+  },
   pinchCard: { width: 180, minHeight: 165, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   pinchCardLarge: { width: 190, minHeight: 175 },
   pinchSymbol: { color: colors.surface, fontSize: 36, lineHeight: 44, fontWeight: '900' },
