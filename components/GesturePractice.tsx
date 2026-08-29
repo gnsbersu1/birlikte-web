@@ -266,31 +266,20 @@ function VerticalSwipePractice() {
   const translateY = useRef(new Animated.Value(0)).current;
   const arrowAnim = useRef(new Animated.Value(0)).current;
   const containerRef = useRef<View>(null);
+
+  const isTrackingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startXRef = useRef(0);
+  const swipeStepRef = useRef<'up' | 'down'>('up');
+  const completedRef = useRef(false);
+  const isTouchInteractionRef = useRef(false);
+
   const { t } = useLanguage();
 
-  // Web Safari/Chrome non-passive scroll prevention ONLY within this exercise area
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const element = containerRef.current as unknown as HTMLElement | null;
-    if (!element) return;
+  swipeStepRef.current = swipeStep;
+  completedRef.current = completed;
 
-    element.style.setProperty('touch-action', 'none');
-    element.style.setProperty('overscroll-behavior', 'contain');
-    element.style.setProperty('-webkit-user-select', 'none');
-    element.style.setProperty('-webkit-touch-callout', 'none');
-
-    const preventScroll = (e: TouchEvent) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    element.addEventListener('touchmove', preventScroll, { passive: false });
-    return () => {
-      element.removeEventListener('touchmove', preventScroll);
-    };
-  }, []);
-
+  // Arrow bounce animation
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
@@ -302,37 +291,157 @@ function VerticalSwipePractice() {
     return () => animation.stop();
   }, [completed, swipeStep, arrowAnim]);
 
-  const panResponder = useMemo(
-    () => PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
-      onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 4,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(-85, Math.min(85, gesture.dy))),
-      onPanResponderRelease: (_, gesture) => {
-        // approx 30-35px vertical movement is accepted as success
-        if (swipeStep === 'up' && gesture.dy <= -30) {
+  // Robust Native Web DOM Touch Layer for iOS Safari & Android Chrome
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+    element.style.setProperty('user-select', 'none');
+
+    const handleDocTouchMove = (e: TouchEvent) => {
+      if (!isTrackingRef.current || completedRef.current) return;
+      // Prevent page scroll during active vertical swipe inside the exercise box
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      const touch = e.touches[0];
+      if (touch) {
+        const dy = touch.clientY - startYRef.current;
+        translateY.setValue(Math.max(-85, Math.min(85, dy)));
+      }
+    };
+
+    const handleDocTouchEnd = (e: TouchEvent) => {
+      if (!isTrackingRef.current) return;
+      isTrackingRef.current = false;
+
+      document.removeEventListener('touchmove', handleDocTouchMove, { capture: true } as any);
+      document.removeEventListener('touchend', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('touchcancel', handleDocTouchEnd, { capture: true } as any);
+
+      // Prevent simulated mouse events on mobile browsers
+      setTimeout(() => {
+        isTouchInteractionRef.current = false;
+      }, 400);
+
+      if (completedRef.current) return;
+
+      const touch = e.changedTouches[0];
+      if (touch) {
+        const dy = touch.clientY - startYRef.current;
+        const dx = touch.clientX - startXRef.current;
+
+        // Tolerate horizontal deviation up to 30px
+        if (Math.abs(dx) <= 30 || Math.abs(dy) >= Math.abs(dx)) {
+          if (swipeStepRef.current === 'up' && dy <= -25) {
+            // Stage 1 UP completed (25-30px upward movement)
+            Animated.sequence([
+              Animated.timing(translateY, { toValue: -75, duration: 140, useNativeDriver: true }),
+              Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+            ]).start(() => {
+              setSwipeStep('down');
+            });
+            return;
+          } else if (swipeStepRef.current === 'down' && dy >= 25) {
+            // Stage 2 DOWN completed (25-30px downward movement)
+            setCompleted(true);
+            Animated.sequence([
+              Animated.timing(translateY, { toValue: 75, duration: 140, useNativeDriver: true }),
+              Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+            ]).start();
+            return;
+          }
+        }
+      }
+
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+    };
+
+    const handleContainerTouchStart = (e: TouchEvent) => {
+      if (completedRef.current) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      isTouchInteractionRef.current = true;
+      isTrackingRef.current = true;
+      startYRef.current = touch.clientY;
+      startXRef.current = touch.clientX;
+
+      document.addEventListener('touchmove', handleDocTouchMove, { passive: false, capture: true });
+      document.addEventListener('touchend', handleDocTouchEnd, { passive: false, capture: true });
+      document.addEventListener('touchcancel', handleDocTouchEnd, { passive: false, capture: true });
+    };
+
+    // Desktop Mouse support (ignored if mobile touch is active)
+    const handleDocMouseMove = (e: MouseEvent) => {
+      if (isTouchInteractionRef.current || !isTrackingRef.current || completedRef.current) return;
+      e.preventDefault();
+      const dy = e.clientY - startYRef.current;
+      translateY.setValue(Math.max(-85, Math.min(85, dy)));
+    };
+
+    const handleDocMouseUp = (e: MouseEvent) => {
+      if (isTouchInteractionRef.current || !isTrackingRef.current) return;
+      isTrackingRef.current = false;
+
+      document.removeEventListener('mousemove', handleDocMouseMove);
+      document.removeEventListener('mouseup', handleDocMouseUp);
+
+      if (completedRef.current) return;
+
+      const dy = e.clientY - startYRef.current;
+      const dx = e.clientX - startXRef.current;
+
+      if (Math.abs(dx) <= 30 || Math.abs(dy) >= Math.abs(dx)) {
+        if (swipeStepRef.current === 'up' && dy <= -25) {
           Animated.sequence([
-            Animated.timing(translateY, { toValue: -80, duration: 150, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: -75, duration: 140, useNativeDriver: true }),
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
           ]).start(() => {
             setSwipeStep('down');
           });
-        } else if (swipeStep === 'down' && gesture.dy >= 30) {
+          return;
+        } else if (swipeStepRef.current === 'down' && dy >= 25) {
           setCompleted(true);
           Animated.sequence([
-            Animated.timing(translateY, { toValue: 80, duration: 150, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 75, duration: 140, useNativeDriver: true }),
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
           ]).start();
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+          return;
         }
-      },
-      onPanResponderTerminate: () => Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start(),
-    }),
-    [swipeStep, translateY],
-  );
+      }
+
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+    };
+
+    const handleContainerMouseDown = (e: MouseEvent) => {
+      if (isTouchInteractionRef.current || completedRef.current) return;
+      isTrackingRef.current = true;
+      startYRef.current = e.clientY;
+      startXRef.current = e.clientX;
+
+      document.addEventListener('mousemove', handleDocMouseMove);
+      document.addEventListener('mouseup', handleDocMouseUp);
+    };
+
+    element.addEventListener('touchstart', handleContainerTouchStart, { passive: false, capture: true });
+    element.addEventListener('mousedown', handleContainerMouseDown);
+
+    return () => {
+      element.removeEventListener('touchstart', handleContainerTouchStart, { capture: true } as any);
+      element.removeEventListener('mousedown', handleContainerMouseDown);
+      document.removeEventListener('touchmove', handleDocTouchMove, { capture: true } as any);
+      document.removeEventListener('touchend', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('touchcancel', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('mousemove', handleDocMouseMove);
+      document.removeEventListener('mouseup', handleDocMouseUp);
+    };
+  }, []);
 
   const handleRetry = () => {
     setCompleted(false);
@@ -347,7 +456,10 @@ function VerticalSwipePractice() {
       <View
         ref={containerRef}
         style={styles.verticalSwipeArea}
-        {...panResponder.panHandlers}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={t('gesture.verticalSwipe.accessibilityLabel')}
+        accessibilityHint={t('gesture.verticalSwipe.accessibilityHint')}
       >
         <Animated.Text
           allowFontScaling={false}
@@ -362,10 +474,6 @@ function VerticalSwipePractice() {
         </Animated.Text>
 
         <Animated.View
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel={t('gesture.verticalSwipe.accessibilityLabel')}
-          accessibilityHint={t('gesture.verticalSwipe.accessibilityHint')}
           style={[styles.verticalSwipeCard, completed && styles.targetCompleted, { transform: [{ translateY }] }]}
         >
           <Text allowFontScaling={false} selectable={false} style={styles.swipeSymbol}>
@@ -413,21 +521,29 @@ function VerticalSwipePractice() {
 function HoldPractice() {
   const [completed, setCompleted] = useState(false);
   const [earlyRelease, setEarlyRelease] = useState(false);
+  const [isHoldingVisual, setIsHoldingVisual] = useState(false);
+
   const progress = useRef(new Animated.Value(0)).current;
-  const startPos = useRef<{ x: number; y: number } | null>(null);
+  const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const isHeldRef = useRef(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<View>(null);
-  const { t } = useLanguage();
+  const completedRef = useRef(false);
+  const isTouchInteractionRef = useRef(false);
 
-  // Prevent text selection, context menu, and callout on Web/iOS Safari
+  const { t } = useLanguage();
+  completedRef.current = completed;
+
+  // Web Touch & Text-Selection / Magnifier Prevention Layer for iOS Safari & Android Chrome
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const element = containerRef.current as unknown as HTMLElement | null;
     if (!element) return;
 
-    element.style.setProperty('-webkit-user-select', 'none');
     element.style.setProperty('-webkit-touch-callout', 'none');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('user-select', 'none');
+    element.style.setProperty('touch-action', 'none');
 
     const preventDefaultAction = (e: Event) => {
       e.preventDefault();
@@ -435,60 +551,145 @@ function HoldPractice() {
 
     element.addEventListener('contextmenu', preventDefaultAction);
     element.addEventListener('selectstart', preventDefaultAction);
+    element.addEventListener('dragstart', preventDefaultAction);
+
+    const cancelHold = () => {
+      isHeldRef.current = false;
+      setIsHoldingVisual(false);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      progress.stopAnimation();
+      Animated.timing(progress, { toValue: 0, duration: 120, useNativeDriver: false }).start();
+
+      document.removeEventListener('touchmove', handleDocTouchMove, { capture: true } as any);
+      document.removeEventListener('touchend', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('touchcancel', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('mousemove', handleDocMouseMove);
+      document.removeEventListener('mouseup', handleDocMouseUp);
+    };
+
+    const handleDocTouchMove = (e: TouchEvent) => {
+      if (!isHeldRef.current || completedRef.current) return;
+      if (e.cancelable) e.preventDefault();
+      const touch = e.touches[0];
+      if (touch && startPosRef.current) {
+        const dx = touch.clientX - startPosRef.current.x;
+        const dy = touch.clientY - startPosRef.current.y;
+        // Tolerate small finger movement up to 30px
+        if (Math.hypot(dx, dy) > 30) {
+          cancelHold();
+          setEarlyRelease(true);
+        }
+      }
+    };
+
+    const handleDocTouchEnd = () => {
+      if (completedRef.current) return;
+      setTimeout(() => {
+        isTouchInteractionRef.current = false;
+      }, 400);
+      if (isHeldRef.current) {
+        cancelHold();
+        setEarlyRelease(true);
+      }
+    };
+
+    const handleContainerTouchStart = (e: TouchEvent) => {
+      if (completedRef.current) return;
+      if (e.cancelable) e.preventDefault();
+
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      isTouchInteractionRef.current = true;
+      isHeldRef.current = true;
+      setIsHoldingVisual(true);
+      setEarlyRelease(false);
+      startPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+      progress.setValue(0);
+      Animated.timing(progress, { toValue: 1, duration: 600, useNativeDriver: false }).start();
+
+      document.addEventListener('touchmove', handleDocTouchMove, { passive: false, capture: true });
+      document.addEventListener('touchend', handleDocTouchEnd, { passive: false, capture: true });
+      document.addEventListener('touchcancel', handleDocTouchEnd, { passive: false, capture: true });
+
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = setTimeout(() => {
+        if (isHeldRef.current) {
+          setCompleted(true);
+          setEarlyRelease(false);
+          setIsHoldingVisual(false);
+          progress.setValue(1);
+          cancelHold();
+        }
+      }, 600);
+    };
+
+    // Desktop Mouse support (ignored if touch active)
+    const handleDocMouseMove = (e: MouseEvent) => {
+      if (isTouchInteractionRef.current || !isHeldRef.current || completedRef.current) return;
+      if (startPosRef.current) {
+        const dx = e.clientX - startPosRef.current.x;
+        const dy = e.clientY - startPosRef.current.y;
+        if (Math.hypot(dx, dy) > 30) {
+          cancelHold();
+          setEarlyRelease(true);
+        }
+      }
+    };
+
+    const handleDocMouseUp = () => {
+      if (isTouchInteractionRef.current || completedRef.current) return;
+      if (isHeldRef.current) {
+        cancelHold();
+        setEarlyRelease(true);
+      }
+    };
+
+    const handleContainerMouseDown = (e: MouseEvent) => {
+      if (isTouchInteractionRef.current || completedRef.current) return;
+      e.preventDefault();
+
+      isHeldRef.current = true;
+      setIsHoldingVisual(true);
+      setEarlyRelease(false);
+      startPosRef.current = { x: e.clientX, y: e.clientY };
+
+      progress.setValue(0);
+      Animated.timing(progress, { toValue: 1, duration: 600, useNativeDriver: false }).start();
+
+      document.addEventListener('mousemove', handleDocMouseMove);
+      document.addEventListener('mouseup', handleDocMouseUp);
+
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = setTimeout(() => {
+        if (isHeldRef.current) {
+          setCompleted(true);
+          setEarlyRelease(false);
+          setIsHoldingVisual(false);
+          progress.setValue(1);
+          cancelHold();
+        }
+      }, 600);
+    };
+
+    element.addEventListener('touchstart', handleContainerTouchStart, { passive: false, capture: true });
+    element.addEventListener('mousedown', handleContainerMouseDown);
+
     return () => {
       element.removeEventListener('contextmenu', preventDefaultAction);
       element.removeEventListener('selectstart', preventDefaultAction);
+      element.removeEventListener('dragstart', preventDefaultAction);
+      element.removeEventListener('touchstart', handleContainerTouchStart, { capture: true } as any);
+      element.removeEventListener('mousedown', handleContainerMouseDown);
+      cancelHold();
     };
   }, []);
-
-  const handleTouchStart = (e: any) => {
-    if (completed) return;
-    setEarlyRelease(false);
-    isHeldRef.current = true;
-    if (e.nativeEvent) {
-      startPos.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
-    }
-    progress.setValue(0);
-    Animated.timing(progress, { toValue: 1, duration: 650, useNativeDriver: false }).start();
-
-    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-    holdTimerRef.current = setTimeout(() => {
-      if (isHeldRef.current) {
-        setCompleted(true);
-        setEarlyRelease(false);
-        progress.setValue(1);
-      }
-    }, 650);
-  };
-
-  const handleTouchMove = (e: any) => {
-    if (completed || !isHeldRef.current || !startPos.current || !e.nativeEvent) return;
-    const dx = e.nativeEvent.pageX - startPos.current.x;
-    const dy = e.nativeEvent.pageY - startPos.current.y;
-    // Tolerate small finger movement and tremor up to 25px
-    if (Math.hypot(dx, dy) > 28) {
-      cancelHold();
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (completed) return;
-    if (isHeldRef.current) {
-      cancelHold();
-      setEarlyRelease(true);
-    }
-  };
-
-  const cancelHold = () => {
-    isHeldRef.current = false;
-    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-    progress.stopAnimation();
-    Animated.timing(progress, { toValue: 0, duration: 150, useNativeDriver: false }).start();
-  };
 
   const handleRetry = () => {
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     isHeldRef.current = false;
+    setIsHoldingVisual(false);
     setCompleted(false);
     setEarlyRelease(false);
     progress.setValue(0);
@@ -498,16 +699,15 @@ function HoldPractice() {
     <View>
       <Text selectable={false} style={styles.practiceTitle}>{t('gesture.hold.title')}</Text>
       <Text selectable={false} style={styles.practiceDescription}>{t('gesture.hold.description')}</Text>
-      <View ref={containerRef} style={styles.practiceArea}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('gesture.hold.accessibilityLabel')}
-          accessibilityHint={t('gesture.hold.accessibilityHint')}
-          onPressIn={handleTouchStart}
-          onPressOut={handleTouchEnd}
-          onTouchMove={handleTouchMove}
-          style={({ pressed }) => [styles.holdTarget, completed && styles.targetCompleted, pressed && styles.targetPressed]}
-        >
+      <View
+        ref={containerRef}
+        style={styles.holdArea}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={t('gesture.hold.accessibilityLabel')}
+        accessibilityHint={t('gesture.hold.accessibilityHint')}
+      >
+        <View style={[styles.holdTarget, completed && styles.targetCompleted, isHoldingVisual && styles.targetPressed]}>
           <Text allowFontScaling={false} selectable={false} style={styles.holdSymbol}>{completed ? '✓' : '●'}</Text>
           <Text selectable={false} style={styles.targetLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.hold.target')}</Text>
           <View style={styles.progressTrack}>
@@ -518,7 +718,7 @@ function HoldPractice() {
               ]}
             />
           </View>
-        </Pressable>
+        </View>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.hold.success')}</SuccessMessage>
@@ -535,54 +735,16 @@ function PinchZoomInPractice() {
   const [completed, setCompleted] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
   const dotSpread = useRef(new Animated.Value(0)).current;
-  const initialDistance = useRef<number | null>(null);
+
+  const isTrackingRef = useRef(false);
+  const initialDistanceRef = useRef<number | null>(null);
   const containerRef = useRef<View>(null);
+  const completedRef = useRef(false);
+
   const { t } = useLanguage();
+  completedRef.current = completed;
 
-  // Prevent Safari page zoom/gesture events ONLY within this exercise container
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const element = containerRef.current as unknown as HTMLElement | null;
-    if (!element) return;
-
-    element.style.setProperty('touch-action', 'none');
-    element.style.setProperty('overscroll-behavior', 'contain');
-    element.style.setProperty('-webkit-user-select', 'none');
-    element.style.setProperty('-webkit-touch-callout', 'none');
-
-    const preventGesture = (e: any) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length >= 2 && e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length >= 2 && e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('gesturestart', preventGesture, { passive: false });
-    element.addEventListener('gesturechange', preventGesture, { passive: false });
-    element.addEventListener('gestureend', preventGesture, { passive: false });
-
-    return () => {
-      element.removeEventListener('touchstart', handleTouchStart);
-      element.removeEventListener('touchmove', handleTouchMove);
-      element.removeEventListener('gesturestart', preventGesture);
-      element.removeEventListener('gesturechange', preventGesture);
-      element.removeEventListener('gestureend', preventGesture);
-    };
-  }, []);
-
+  // Outward finger dot demo animation
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
@@ -594,48 +756,102 @@ function PinchZoomInPractice() {
     return () => animation.stop();
   }, [completed, dotSpread]);
 
-  const handleTouchStart = (e: any) => {
-    if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2) {
-      const [t1, t2] = e.nativeEvent.touches;
-      initialDistance.current = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-    }
-  };
+  // Robust Native Web DOM Multi-Touch Layer for Android Chrome & iOS Safari
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
 
-  const handleTouchMove = (e: any) => {
-    if (completed) return;
-    if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2 && initialDistance.current) {
-      const [t1, t2] = e.nativeEvent.touches;
-      const currentDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-      const ratio = currentDist / initialDistance.current;
-      const delta = currentDist - initialDistance.current;
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+    element.style.setProperty('user-select', 'none');
 
-      scale.setValue(Math.min(1.4, Math.max(1, ratio)));
-
-      // Genuine ~10-12% expansion or at least 18px distance increase
-      if (ratio >= 1.10 || delta >= 18) {
-        completeZoomIn();
+    // Safari-only extra protection (causes no harm on Android Chrome)
+    const preventDocGesture = (e: any) => {
+      if (isTrackingRef.current && e.cancelable) {
+        e.preventDefault();
       }
-    }
-  };
+    };
 
-  const handleTouchEnd = () => {
-    initialDistance.current = null;
-    if (!completed) {
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
-    }
-  };
+    const cleanupDocListeners = () => {
+      isTrackingRef.current = false;
+      initialDistanceRef.current = null;
+      document.removeEventListener('touchmove', handleDocTouchMove, { capture: true } as any);
+      document.removeEventListener('touchend', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('touchcancel', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('gesturestart', preventDocGesture, { capture: true } as any);
+      document.removeEventListener('gesturechange', preventDocGesture, { capture: true } as any);
+      document.removeEventListener('gestureend', preventDocGesture, { capture: true } as any);
+    };
 
-  const completeZoomIn = () => {
-    setCompleted(true);
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 1.32, duration: 200, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }),
-    ]).start();
-  };
+    // Universal W3C multi-touch move handler (Android Chrome + iOS Safari)
+    const handleDocTouchMove = (e: TouchEvent) => {
+      if (!isTrackingRef.current || completedRef.current) return;
+      if (e.cancelable) e.preventDefault();
+
+      if (e.touches.length >= 2 && initialDistanceRef.current) {
+        const [t1, t2] = [e.touches[0], e.touches[1]];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const ratio = currentDist / initialDistanceRef.current;
+        const delta = currentDist - initialDistanceRef.current;
+
+        scale.setValue(Math.min(1.4, Math.max(1, ratio)));
+
+        // ~8-10% or at least 14-16px outward distance increase accepted as success
+        if (ratio >= 1.09 || delta >= 15) {
+          setCompleted(true);
+          Animated.sequence([
+            Animated.timing(scale, { toValue: 1.32, duration: 180, useNativeDriver: true }),
+            Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }),
+          ]).start();
+          cleanupDocListeners();
+        }
+      }
+    };
+
+    const handleDocTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        cleanupDocListeners();
+        if (!completedRef.current) {
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+        }
+      }
+    };
+
+    const handleContainerTouchStart = (e: TouchEvent) => {
+      if (completedRef.current) return;
+      if (e.touches.length >= 2) {
+        if (e.cancelable) e.preventDefault();
+        const [t1, t2] = [e.touches[0], e.touches[1]];
+        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        if (dist > 15) {
+          initialDistanceRef.current = dist;
+          isTrackingRef.current = true;
+
+          document.addEventListener('touchmove', handleDocTouchMove, { passive: false, capture: true });
+          document.addEventListener('touchend', handleDocTouchEnd, { passive: false, capture: true });
+          document.addEventListener('touchcancel', handleDocTouchEnd, { passive: false, capture: true });
+          document.addEventListener('gesturestart', preventDocGesture, { passive: false, capture: true });
+          document.addEventListener('gesturechange', preventDocGesture, { passive: false, capture: true });
+          document.addEventListener('gestureend', preventDocGesture, { passive: false, capture: true });
+        }
+      }
+    };
+
+    element.addEventListener('touchstart', handleContainerTouchStart, { passive: false, capture: true });
+
+    return () => {
+      element.removeEventListener('touchstart', handleContainerTouchStart, { capture: true } as any);
+      cleanupDocListeners();
+    };
+  }, []);
 
   const handleRetry = () => {
     setCompleted(false);
-    initialDistance.current = null;
+    initialDistanceRef.current = null;
+    isTrackingRef.current = false;
     scale.setValue(1);
   };
 
@@ -646,10 +862,6 @@ function PinchZoomInPractice() {
       <View
         ref={containerRef}
         style={styles.pinchContainer}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
         accessible
         accessibilityRole="image"
         accessibilityLabel={t('gesture.pinchZoomIn.accessibilityLabel')}
@@ -703,54 +915,16 @@ function PinchZoomOutPractice() {
   const [completed, setCompleted] = useState(false);
   const scale = useRef(new Animated.Value(1.25)).current;
   const dotPinch = useRef(new Animated.Value(24)).current;
-  const initialDistance = useRef<number | null>(null);
+
+  const isTrackingRef = useRef(false);
+  const initialDistanceRef = useRef<number | null>(null);
   const containerRef = useRef<View>(null);
+  const completedRef = useRef(false);
+
   const { t } = useLanguage();
+  completedRef.current = completed;
 
-  // Prevent Safari page zoom/gesture events ONLY within this exercise container
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const element = containerRef.current as unknown as HTMLElement | null;
-    if (!element) return;
-
-    element.style.setProperty('touch-action', 'none');
-    element.style.setProperty('overscroll-behavior', 'contain');
-    element.style.setProperty('-webkit-user-select', 'none');
-    element.style.setProperty('-webkit-touch-callout', 'none');
-
-    const preventGesture = (e: any) => {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length >= 2 && e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length >= 2 && e.cancelable) {
-        e.preventDefault();
-      }
-    };
-
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('gesturestart', preventGesture, { passive: false });
-    element.addEventListener('gesturechange', preventGesture, { passive: false });
-    element.addEventListener('gestureend', preventGesture, { passive: false });
-
-    return () => {
-      element.removeEventListener('touchstart', handleTouchStart);
-      element.removeEventListener('touchmove', handleTouchMove);
-      element.removeEventListener('gesturestart', preventGesture);
-      element.removeEventListener('gesturechange', preventGesture);
-      element.removeEventListener('gestureend', preventGesture);
-    };
-  }, []);
-
+  // Inward finger dot demo animation
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
@@ -762,49 +936,103 @@ function PinchZoomOutPractice() {
     return () => animation.stop();
   }, [completed, dotPinch]);
 
-  const handleTouchStart = (e: any) => {
-    if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2) {
-      const [t1, t2] = e.nativeEvent.touches;
-      initialDistance.current = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-    }
-  };
+  // Robust Native Web DOM Multi-Touch Layer for Android Chrome & iOS Safari
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = containerRef.current as unknown as HTMLElement | null;
+    if (!element) return;
 
-  const handleTouchMove = (e: any) => {
-    if (completed) return;
-    if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2 && initialDistance.current) {
-      const [t1, t2] = e.nativeEvent.touches;
-      const currentDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-      const ratio = currentDist / initialDistance.current;
-      const delta = initialDistance.current - currentDist;
+    element.style.setProperty('touch-action', 'none');
+    element.style.setProperty('overscroll-behavior', 'contain');
+    element.style.setProperty('-webkit-user-select', 'none');
+    element.style.setProperty('-webkit-touch-callout', 'none');
+    element.style.setProperty('user-select', 'none');
 
-      const targetScale = Math.max(0.75, Math.min(1.25, 1.25 * ratio));
-      scale.setValue(targetScale);
-
-      // Genuine ~10-12% contraction or at least 18px distance decrease
-      if (ratio <= 0.90 || delta >= 18) {
-        completeZoomOut();
+    // Safari-only extra protection
+    const preventDocGesture = (e: any) => {
+      if (isTrackingRef.current && e.cancelable) {
+        e.preventDefault();
       }
-    }
-  };
+    };
 
-  const handleTouchEnd = () => {
-    initialDistance.current = null;
-    if (!completed) {
-      Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }).start();
-    }
-  };
+    const cleanupDocListeners = () => {
+      isTrackingRef.current = false;
+      initialDistanceRef.current = null;
+      document.removeEventListener('touchmove', handleDocTouchMove, { capture: true } as any);
+      document.removeEventListener('touchend', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('touchcancel', handleDocTouchEnd, { capture: true } as any);
+      document.removeEventListener('gesturestart', preventDocGesture, { capture: true } as any);
+      document.removeEventListener('gesturechange', preventDocGesture, { capture: true } as any);
+      document.removeEventListener('gestureend', preventDocGesture, { capture: true } as any);
+    };
 
-  const completeZoomOut = () => {
-    setCompleted(true);
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.82, duration: 200, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 0.88, useNativeDriver: true }),
-    ]).start();
-  };
+    // Universal W3C multi-touch move handler (Android Chrome + iOS Safari)
+    const handleDocTouchMove = (e: TouchEvent) => {
+      if (!isTrackingRef.current || completedRef.current) return;
+      if (e.cancelable) e.preventDefault();
+
+      if (e.touches.length >= 2 && initialDistanceRef.current) {
+        const [t1, t2] = [e.touches[0], e.touches[1]];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const ratio = currentDist / initialDistanceRef.current;
+        const delta = initialDistanceRef.current - currentDist;
+
+        const targetScale = Math.max(0.75, Math.min(1.25, 1.25 * ratio));
+        scale.setValue(targetScale);
+
+        // ~8-10% or at least 14-16px inward distance decrease accepted as success
+        if (ratio <= 0.91 || delta >= 15) {
+          setCompleted(true);
+          Animated.sequence([
+            Animated.timing(scale, { toValue: 0.82, duration: 180, useNativeDriver: true }),
+            Animated.spring(scale, { toValue: 0.88, useNativeDriver: true }),
+          ]).start();
+          cleanupDocListeners();
+        }
+      }
+    };
+
+    const handleDocTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        cleanupDocListeners();
+        if (!completedRef.current) {
+          Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }).start();
+        }
+      }
+    };
+
+    const handleContainerTouchStart = (e: TouchEvent) => {
+      if (completedRef.current) return;
+      if (e.touches.length >= 2) {
+        if (e.cancelable) e.preventDefault();
+        const [t1, t2] = [e.touches[0], e.touches[1]];
+        const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        if (dist > 15) {
+          initialDistanceRef.current = dist;
+          isTrackingRef.current = true;
+
+          document.addEventListener('touchmove', handleDocTouchMove, { passive: false, capture: true });
+          document.addEventListener('touchend', handleDocTouchEnd, { passive: false, capture: true });
+          document.addEventListener('touchcancel', handleDocTouchEnd, { passive: false, capture: true });
+          document.addEventListener('gesturestart', preventDocGesture, { passive: false, capture: true });
+          document.addEventListener('gesturechange', preventDocGesture, { passive: false, capture: true });
+          document.addEventListener('gestureend', preventDocGesture, { passive: false, capture: true });
+        }
+      }
+    };
+
+    element.addEventListener('touchstart', handleContainerTouchStart, { passive: false, capture: true });
+
+    return () => {
+      element.removeEventListener('touchstart', handleContainerTouchStart, { capture: true } as any);
+      cleanupDocListeners();
+    };
+  }, []);
 
   const handleRetry = () => {
     setCompleted(false);
-    initialDistance.current = null;
+    initialDistanceRef.current = null;
+    isTrackingRef.current = false;
     scale.setValue(1.25);
   };
 
@@ -815,10 +1043,6 @@ function PinchZoomOutPractice() {
       <View
         ref={containerRef}
         style={styles.pinchContainer}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
         accessible
         accessibilityRole="image"
         accessibilityLabel={t('gesture.pinchZoomOut.accessibilityLabel')}
@@ -1013,7 +1237,7 @@ const styles = StyleSheet.create({
   practiceTitle: { color: colors.text, fontSize: 26, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
   practiceDescription: { color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '700', textAlign: 'center', marginTop: spacing.xs },
   practiceArea: {
-    minHeight: 185,
+    minHeight: 200,
     alignItems: 'center',
     justifyContent: 'center',
     userSelect: 'none',
@@ -1023,9 +1247,17 @@ const styles = StyleSheet.create({
   doubleTapFirstActive: { borderColor: colors.goldSoft, backgroundColor: colors.gold },
   stepBadge: { marginTop: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.round, backgroundColor: 'rgba(0,0,0,0.3)' },
   stepBadgeText: { color: colors.surface, fontSize: 16, fontWeight: '900' },
+  holdArea: {
+    minHeight: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    userSelect: 'none',
+  },
   holdTarget: {
-    width: 195,
-    minHeight: 150,
+    width: '90%',
+    maxWidth: 240,
+    minHeight: 180,
     borderRadius: radius.lg,
     backgroundColor: colors.blue,
     borderWidth: 4,
@@ -1039,7 +1271,7 @@ const styles = StyleSheet.create({
   targetCompleted: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
   tapSymbol: { color: colors.surface, fontSize: 38, lineHeight: 46 },
   doubleTapSymbol: { color: colors.surface, fontSize: 34, lineHeight: 42, fontWeight: '900' },
-  holdSymbol: { color: colors.surface, fontSize: 34, lineHeight: 40 },
+  holdSymbol: { color: colors.surface, fontSize: 36, lineHeight: 44 },
   targetLabel: { color: colors.surface, fontSize: 20, lineHeight: 27, fontWeight: '900', textAlign: 'center' },
   helpText: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', textAlign: 'center', marginTop: spacing.xs },
   stepFeedbackText: { color: colors.primary, fontSize: 18, lineHeight: 25, fontWeight: '900', textAlign: 'center', marginTop: spacing.xs },
@@ -1049,37 +1281,37 @@ const styles = StyleSheet.create({
   successMark: { width: 34, height: 34, borderRadius: 17, color: colors.surface, backgroundColor: colors.primary, fontSize: 20, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
   successText: { flex: 1, color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '800' },
   retryButton: { marginTop: spacing.xs },
-  swipeArea: { minHeight: 190, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  swipeArea: { minHeight: 200, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' },
   swipeCard: { width: 155, minHeight: 118, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
   swipeSymbol: { color: colors.surface, fontSize: 34, lineHeight: 40 },
   swipeLabel: { color: colors.surface, fontSize: 19, lineHeight: 26, fontWeight: '900', textAlign: 'center' },
   edgeArrow: { color: colors.primary, fontSize: 46, fontWeight: '600' },
   movingArrow: { position: 'absolute', bottom: 4, alignSelf: 'center', left: '44%', color: colors.coral, fontSize: 28, fontWeight: '900' },
   verticalSwipeArea: {
-    minHeight: 220,
+    minHeight: 280,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     userSelect: 'none',
   },
-  verticalSwipeCard: { width: '88%', maxWidth: 230, minHeight: 112, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
-  verticalBigArrow: { fontSize: 32, lineHeight: 36, fontWeight: '900' },
+  verticalSwipeCard: { width: '88%', maxWidth: 230, minHeight: 120, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
+  verticalBigArrow: { fontSize: 36, lineHeight: 40, fontWeight: '900' },
   arrowActive: { color: colors.coral, opacity: 1 },
   arrowInactive: { color: colors.primary, opacity: 0.3 },
-  progressTrack: { width: '85%', height: 10, overflow: 'hidden', borderRadius: radius.round, backgroundColor: 'rgba(255,255,255,0.42)', marginTop: spacing.xs },
+  progressTrack: { width: '85%', height: 10, overflow: 'hidden', borderRadius: radius.round, backgroundColor: 'rgba(255,255,255,0.42)', marginTop: spacing.sm },
   progressFill: { height: '100%', borderRadius: radius.round, backgroundColor: colors.goldSoft },
   pinchContainer: {
-    minHeight: 260,
+    minHeight: 280,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
     overflow: 'hidden',
     userSelect: 'none',
   },
-  pinchCard: { width: 180, minHeight: 165, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
-  pinchCardLarge: { width: 190, minHeight: 175 },
-  pinchSymbol: { color: colors.surface, fontSize: 36, lineHeight: 44, fontWeight: '900' },
+  pinchCard: { width: 185, minHeight: 175, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  pinchCardLarge: { width: 195, minHeight: 185 },
+  pinchSymbol: { color: colors.surface, fontSize: 38, lineHeight: 46, fontWeight: '900' },
   pinchLabel: { color: colors.surface, fontSize: 19, lineHeight: 26, fontWeight: '900', textAlign: 'center' },
   dotsDemoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.sm },
   fingerDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
