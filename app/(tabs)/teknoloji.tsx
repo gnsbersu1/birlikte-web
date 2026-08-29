@@ -100,6 +100,18 @@ export default function TechnologyScreen() {
         if (!lesson) return null;
         const isActive = activeLessonId === lessonId;
 
+        if (lesson.id === 'gestures') {
+          return (
+            <View key={lessonId} style={[styles.gestureLessonContainer, !isActive && styles.hiddenLesson]}>
+              <GesturePractice />
+              <View style={[styles.reassurance, styles.reassuranceBottom, isLargeText && styles.reassuranceLargeText]}>
+                <Text allowFontScaling={false} style={styles.reassuranceMark}>i</Text>
+                <Text style={styles.reassuranceText}>{t('technology.safeNotice')}</Text>
+              </View>
+            </View>
+          );
+        }
+
         return (
           <View key={lessonId} style={!isActive ? styles.hiddenLesson : undefined}>
             <View style={[styles.reassurance, isLargeText && styles.reassuranceLargeText]}>
@@ -116,7 +128,6 @@ export default function TechnologyScreen() {
                   </View>
                 ))}
 
-                {lesson.id === 'gestures' ? <GesturePractice /> : null}
                 {lesson.id === 'message' ? <MessagePractice /> : null}
                 {lesson.id === 'scam' ? (
                   <LargeButton
@@ -145,8 +156,10 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 24, lineHeight: 34, fontWeight: '900' },
   duration: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: spacing.xs },
   startButton: { marginHorizontal: spacing.md, marginBottom: spacing.md },
+  gestureLessonContainer: { marginTop: spacing.md, gap: spacing.md },
   hiddenLesson: { display: 'none' },
   reassurance: { marginTop: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.blueSoft, borderWidth: 2, borderColor: colors.blue },
+  reassuranceBottom: { marginTop: spacing.md },
   reassuranceLargeText: { alignItems: 'flex-start', flexDirection: 'column' },
   reassuranceMark: { width: 40, height: 40, borderRadius: 20, color: colors.surface, backgroundColor: colors.blue, fontSize: 25, lineHeight: 40, fontWeight: '900', textAlign: 'center' },
   reassuranceText: { flex: 1, color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '700' },

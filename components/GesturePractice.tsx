@@ -261,30 +261,40 @@ function SwipePractice() {
 
 function VerticalSwipePractice() {
   const [completed, setCompleted] = useState(false);
+  const [swipeStep, setSwipeStep] = useState<'up' | 'down'>('up');
   const translateY = useRef(new Animated.Value(0)).current;
-  const hintY = useRef(new Animated.Value(-16)).current;
+  const arrowAnim = useRef(new Animated.Value(0)).current;
   const { t } = useLanguage();
 
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(hintY, { toValue: 16, duration: 900, useNativeDriver: true }),
-        Animated.timing(hintY, { toValue: -16, duration: 900, useNativeDriver: true }),
+        Animated.timing(arrowAnim, { toValue: swipeStep === 'up' ? -14 : 14, duration: 700, useNativeDriver: true }),
+        Animated.timing(arrowAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
       ]),
     );
     if (!completed) animation.start();
     return () => animation.stop();
-  }, [completed, hintY]);
+  }, [completed, swipeStep, arrowAnim]);
 
   const panResponder = useMemo(
     () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6,
       onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(-85, Math.min(85, gesture.dy))),
       onPanResponderRelease: (_, gesture) => {
-        if (Math.abs(gesture.dy) >= 55) {
+        if (swipeStep === 'up' && gesture.dy <= -35) {
+          // Upward swipe step completed (approx 35-40px upward)
+          Animated.sequence([
+            Animated.timing(translateY, { toValue: -80, duration: 150, useNativeDriver: true }),
+            Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
+          ]).start(() => {
+            setSwipeStep('down');
+          });
+        } else if (swipeStep === 'down' && gesture.dy >= 35) {
+          // Downward swipe step completed (approx 35-40px downward)
           setCompleted(true);
           Animated.sequence([
-            Animated.timing(translateY, { toValue: gesture.dy > 0 ? 85 : -85, duration: 160, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 80, duration: 150, useNativeDriver: true }),
             Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
           ]).start();
         } else {
@@ -293,11 +303,12 @@ function VerticalSwipePractice() {
       },
       onPanResponderTerminate: () => Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start(),
     }),
-    [translateY],
+    [swipeStep, translateY],
   );
 
   const handleRetry = () => {
     setCompleted(false);
+    setSwipeStep('up');
     translateY.setValue(0);
   };
 
@@ -306,7 +317,17 @@ function VerticalSwipePractice() {
       <Text style={styles.practiceTitle}>{t('gesture.verticalSwipe.title')}</Text>
       <Text style={styles.practiceDescription}>{t('gesture.verticalSwipe.description')}</Text>
       <View style={styles.verticalSwipeArea}>
-        <Text allowFontScaling={false} style={styles.verticalEdgeArrow}>⌃</Text>
+        <Animated.Text
+          allowFontScaling={false}
+          style={[
+            styles.verticalBigArrow,
+            swipeStep === 'up' ? styles.arrowActive : styles.arrowInactive,
+            { transform: [{ translateY: swipeStep === 'up' ? arrowAnim : 0 }] },
+          ]}
+        >
+          ▲
+        </Animated.Text>
+
         <Animated.View
           accessible
           accessibilityRole="adjustable"
@@ -315,14 +336,40 @@ function VerticalSwipePractice() {
           style={[styles.verticalSwipeCard, completed && styles.targetCompleted, { transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
-          <Text allowFontScaling={false} style={styles.swipeSymbol}>{completed ? '✓' : '↕'}</Text>
-          <Text style={styles.swipeLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.verticalSwipe.target')}</Text>
+          <Text allowFontScaling={false} style={styles.swipeSymbol}>
+            {completed ? '✓' : swipeStep === 'up' ? '▲' : '▼'}
+          </Text>
+          <Text style={styles.swipeLabel}>
+            {completed
+              ? t('gesture.tap.successTarget')
+              : swipeStep === 'up'
+              ? t('gesture.verticalSwipe.targetUp')
+              : t('gesture.verticalSwipe.targetDown')}
+          </Text>
+          {!completed ? (
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>
+                {swipeStep === 'up' ? '1 / 2 ↑' : '2 / 2 ↓'}
+              </Text>
+            </View>
+          ) : null}
         </Animated.View>
-        <Text allowFontScaling={false} style={styles.verticalEdgeArrow}>⌄</Text>
-        {!completed ? <Animated.Text allowFontScaling={false} style={[styles.movingVerticalArrow, { transform: [{ translateY: hintY }] }]}>↕</Animated.Text> : null}
+
+        <Animated.Text
+          allowFontScaling={false}
+          style={[
+            styles.verticalBigArrow,
+            swipeStep === 'down' ? styles.arrowActive : styles.arrowInactive,
+            { transform: [{ translateY: swipeStep === 'down' ? arrowAnim : 0 }] },
+          ]}
+        >
+          ▼
+        </Animated.Text>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.verticalSwipe.success')}</SuccessMessage>
+      ) : swipeStep === 'down' ? (
+        <Text style={styles.stepFeedbackText}>{t('gesture.verticalSwipe.step1Done')}</Text>
       ) : (
         <Text style={styles.helpText}>{t('gesture.verticalSwipe.help')}</Text>
       )}
@@ -332,29 +379,63 @@ function VerticalSwipePractice() {
 
 function HoldPractice() {
   const [completed, setCompleted] = useState(false);
+  const [earlyRelease, setEarlyRelease] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
+  const startPos = useRef<{ x: number; y: number } | null>(null);
+  const isHeldRef = useRef(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { t } = useLanguage();
 
-  const startHold = () => {
-    setCompleted(false);
+  const handleTouchStart = (e: any) => {
+    if (completed) return;
+    setEarlyRelease(false);
+    isHeldRef.current = true;
+    if (e.nativeEvent) {
+      startPos.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+    }
     progress.setValue(0);
-    Animated.timing(progress, { toValue: 1, duration: 1000, useNativeDriver: false }).start();
+    Animated.timing(progress, { toValue: 1, duration: 700, useNativeDriver: false }).start();
+
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      if (isHeldRef.current) {
+        setCompleted(true);
+        setEarlyRelease(false);
+        progress.setValue(1);
+      }
+    }, 700);
   };
 
-  const cancelHold = () => {
-    if (!completed) {
-      progress.stopAnimation();
-      Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: false }).start();
+  const handleTouchMove = (e: any) => {
+    if (completed || !isHeldRef.current || !startPos.current || !e.nativeEvent) return;
+    const dx = e.nativeEvent.pageX - startPos.current.x;
+    const dy = e.nativeEvent.pageY - startPos.current.y;
+    // Tolerate small finger movement up to 20px
+    if (Math.hypot(dx, dy) > 26) {
+      cancelHold();
     }
   };
 
-  const complete = () => {
-    setCompleted(true);
-    progress.setValue(1);
+  const handleTouchEnd = () => {
+    if (completed) return;
+    if (isHeldRef.current) {
+      cancelHold();
+      setEarlyRelease(true);
+    }
+  };
+
+  const cancelHold = () => {
+    isHeldRef.current = false;
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    progress.stopAnimation();
+    Animated.timing(progress, { toValue: 0, duration: 150, useNativeDriver: false }).start();
   };
 
   const handleRetry = () => {
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    isHeldRef.current = false;
     setCompleted(false);
+    setEarlyRelease(false);
     progress.setValue(0);
   };
 
@@ -367,19 +448,27 @@ function HoldPractice() {
           accessibilityRole="button"
           accessibilityLabel={t('gesture.hold.accessibilityLabel')}
           accessibilityHint={t('gesture.hold.accessibilityHint')}
-          delayLongPress={1000}
-          onPressIn={startHold}
-          onPressOut={cancelHold}
-          onLongPress={complete}
+          onPressIn={handleTouchStart}
+          onPressOut={handleTouchEnd}
+          onTouchMove={handleTouchMove}
           style={({ pressed }) => [styles.holdTarget, completed && styles.targetCompleted, pressed && styles.targetPressed]}
         >
           <Text allowFontScaling={false} style={styles.holdSymbol}>{completed ? '✓' : '●'}</Text>
           <Text style={styles.targetLabel}>{completed ? t('gesture.tap.successTarget') : t('gesture.hold.target')}</Text>
-          <View style={styles.progressTrack}><Animated.View style={[styles.progressFill, { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} /></View>
+          <View style={styles.progressTrack}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+              ]}
+            />
+          </View>
         </Pressable>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.hold.success')}</SuccessMessage>
+      ) : earlyRelease ? (
+        <Text style={styles.warningGuideText}>{t('gesture.hold.earlyRelease')}</Text>
       ) : (
         <Text style={styles.helpText}>{t('gesture.hold.help')}</Text>
       )}
@@ -390,8 +479,20 @@ function HoldPractice() {
 function PinchZoomInPractice() {
   const [completed, setCompleted] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
+  const dotSpread = useRef(new Animated.Value(0)).current;
   const initialDistance = useRef<number | null>(null);
   const { t } = useLanguage();
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotSpread, { toValue: 24, duration: 1100, useNativeDriver: true }),
+        Animated.timing(dotSpread, { toValue: 0, duration: 350, useNativeDriver: true }),
+      ]),
+    );
+    if (!completed) animation.start();
+    return () => animation.stop();
+  }, [completed, dotSpread]);
 
   const handleTouchStart = (e: any) => {
     if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2) {
@@ -406,9 +507,12 @@ function PinchZoomInPractice() {
       const [t1, t2] = e.nativeEvent.touches;
       const currentDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
       const ratio = currentDist / initialDistance.current;
-      scale.setValue(Math.min(1.5, Math.max(1, ratio)));
+      const delta = currentDist - initialDistance.current;
 
-      if (ratio >= 1.28) {
+      scale.setValue(Math.min(1.4, Math.max(1, ratio)));
+
+      // Genuine ~12-15% expansion or at least 20px distance increase
+      if (ratio >= 1.13 || delta >= 20) {
         completeZoomIn();
       }
     }
@@ -424,8 +528,8 @@ function PinchZoomInPractice() {
   const completeZoomIn = () => {
     setCompleted(true);
     Animated.sequence([
-      Animated.timing(scale, { toValue: 1.38, duration: 200, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1.28, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1.32, duration: 200, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }),
     ]).start();
   };
 
@@ -461,23 +565,29 @@ function PinchZoomInPractice() {
           <Text style={styles.pinchLabel}>
             {completed ? t('gesture.tap.successTarget') : t('gesture.pinchZoomIn.target')}
           </Text>
-          <Text allowFontScaling={false} style={styles.pinchSubtext}>
-            {completed ? '🔍 130%' : '🔍 100%'}
-          </Text>
-        </Animated.View>
 
-        {!completed ? (
-          <View style={styles.pinchButtonRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('gesture.pinchZoomIn.zoomButton')}
-              onPress={completeZoomIn}
-              style={({ pressed }) => [styles.zoomActionButton, pressed && styles.targetPressed]}
-            >
-              <Text style={styles.zoomActionButtonText}>{t('gesture.pinchZoomIn.zoomButton')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
+          {!completed ? (
+            <View style={styles.dotsDemoRow}>
+              <Animated.View
+                style={[
+                  styles.fingerDot,
+                  { transform: [{ translateX: Animated.multiply(dotSpread, -1) }] },
+                ]}
+              >
+                <Text allowFontScaling={false} style={styles.dotText}>👈</Text>
+              </Animated.View>
+              <Text allowFontScaling={false} style={styles.dotsCenterArrow}>⇦ ⇨</Text>
+              <Animated.View
+                style={[
+                  styles.fingerDot,
+                  { transform: [{ translateX: dotSpread }] },
+                ]}
+              >
+                <Text allowFontScaling={false} style={styles.dotText}>👉</Text>
+              </Animated.View>
+            </View>
+          ) : null}
+        </Animated.View>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.pinchZoomIn.success')}</SuccessMessage>
@@ -490,9 +600,21 @@ function PinchZoomInPractice() {
 
 function PinchZoomOutPractice() {
   const [completed, setCompleted] = useState(false);
-  const scale = useRef(new Animated.Value(1.3)).current;
+  const scale = useRef(new Animated.Value(1.25)).current;
+  const dotPinch = useRef(new Animated.Value(24)).current;
   const initialDistance = useRef<number | null>(null);
   const { t } = useLanguage();
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotPinch, { toValue: 4, duration: 1100, useNativeDriver: true }),
+        Animated.timing(dotPinch, { toValue: 24, duration: 350, useNativeDriver: true }),
+      ]),
+    );
+    if (!completed) animation.start();
+    return () => animation.stop();
+  }, [completed, dotPinch]);
 
   const handleTouchStart = (e: any) => {
     if (e.nativeEvent?.touches && e.nativeEvent.touches.length === 2) {
@@ -507,10 +629,13 @@ function PinchZoomOutPractice() {
       const [t1, t2] = e.nativeEvent.touches;
       const currentDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
       const ratio = currentDist / initialDistance.current;
-      const targetScale = Math.max(0.65, Math.min(1.3, 1.3 * ratio));
+      const delta = initialDistance.current - currentDist;
+
+      const targetScale = Math.max(0.75, Math.min(1.25, 1.25 * ratio));
       scale.setValue(targetScale);
 
-      if (ratio <= 0.74) {
+      // Genuine ~12-15% contraction or at least 20px distance decrease
+      if (ratio <= 0.87 || delta >= 20) {
         completeZoomOut();
       }
     }
@@ -519,22 +644,22 @@ function PinchZoomOutPractice() {
   const handleTouchEnd = () => {
     initialDistance.current = null;
     if (!completed) {
-      Animated.spring(scale, { toValue: 1.3, useNativeDriver: true }).start();
+      Animated.spring(scale, { toValue: 1.25, useNativeDriver: true }).start();
     }
   };
 
   const completeZoomOut = () => {
     setCompleted(true);
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.78, duration: 200, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 0.86, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.82, duration: 200, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 0.88, useNativeDriver: true }),
     ]).start();
   };
 
   const handleRetry = () => {
     setCompleted(false);
     initialDistance.current = null;
-    scale.setValue(1.3);
+    scale.setValue(1.25);
   };
 
   return (
@@ -564,23 +689,29 @@ function PinchZoomOutPractice() {
           <Text style={styles.pinchLabel}>
             {completed ? t('gesture.tap.successTarget') : t('gesture.pinchZoomOut.target')}
           </Text>
-          <Text allowFontScaling={false} style={styles.pinchSubtext}>
-            {completed ? '🔍 85%' : '🔍 130%'}
-          </Text>
-        </Animated.View>
 
-        {!completed ? (
-          <View style={styles.pinchButtonRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('gesture.pinchZoomOut.zoomButton')}
-              onPress={completeZoomOut}
-              style={({ pressed }) => [styles.zoomActionButton, pressed && styles.targetPressed]}
-            >
-              <Text style={styles.zoomActionButtonText}>{t('gesture.pinchZoomOut.zoomButton')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
+          {!completed ? (
+            <View style={styles.dotsDemoRow}>
+              <Animated.View
+                style={[
+                  styles.fingerDot,
+                  { transform: [{ translateX: dotPinch }] },
+                ]}
+              >
+                <Text allowFontScaling={false} style={styles.dotText}>👉</Text>
+              </Animated.View>
+              <Text allowFontScaling={false} style={styles.dotsCenterArrow}>⇨ ⇦</Text>
+              <Animated.View
+                style={[
+                  styles.fingerDot,
+                  { transform: [{ translateX: Animated.multiply(dotPinch, -1) }] },
+                ]}
+              >
+                <Text allowFontScaling={false} style={styles.dotText}>👈</Text>
+              </Animated.View>
+            </View>
+          ) : null}
+        </Animated.View>
       </View>
       {completed ? (
         <SuccessMessage onRetry={handleRetry}>{t('gesture.pinchZoomOut.success')}</SuccessMessage>
@@ -645,9 +776,6 @@ export function GesturePractice() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading} accessibilityRole="header">{t('gesture.heading')}</Text>
-      <Text style={styles.intro}>{t('gesture.intro')}</Text>
-
       <View
         style={[styles.stepBanner, isLargeText && styles.stepBannerLargeText]}
         accessible
@@ -659,12 +787,15 @@ export function GesturePractice() {
       >
         <View style={styles.stepInfoRow}>
           <Text style={styles.stepProgressNumber}>
-            {t('gesture.progress', { current: currentStepIndex + 1, total: totalSteps })}
+            {t('gesture.progressTitle', {
+              current: currentStepIndex + 1,
+              total: totalSteps,
+              name: t(currentStep.nameKey),
+            })}
           </Text>
-          <View style={styles.stepNameBadge}>
-            <Text allowFontScaling={false} style={styles.stepNameSymbol}>{currentStep.symbol}</Text>
-            <Text style={styles.stepNameText}>{t(currentStep.nameKey)}</Text>
-          </View>
+          <Text allowFontScaling={false} style={styles.stepSymbolBadge}>
+            {currentStep.symbol}
+          </Text>
         </View>
         <View style={styles.progressBarTrack} accessible={false}>
           {gestureSteps.map((step, idx) => (
@@ -721,64 +852,63 @@ export function GesturePractice() {
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, padding: spacing.md, gap: spacing.sm },
-  heading: { color: colors.text, fontSize: 30, lineHeight: 42, fontWeight: '900' },
-  intro: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '700' },
-  stepBanner: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.border, gap: spacing.sm },
+  container: { borderRadius: radius.lg, borderWidth: 2, borderColor: colors.primary, backgroundColor: colors.primarySoft, padding: spacing.sm, gap: spacing.sm },
+  stepBanner: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.border, gap: spacing.xs },
   stepBannerLargeText: { padding: spacing.sm },
-  stepInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.xs },
-  stepProgressNumber: { color: colors.primary, fontSize: 20, lineHeight: 28, fontWeight: '900' },
-  stepNameBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.primarySoft, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.md },
-  stepNameSymbol: { color: colors.primary, fontSize: 22, lineHeight: 26, fontWeight: '900' },
-  stepNameText: { color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '900' },
-  progressBarTrack: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  progressBarSegment: { flex: 1, height: 8, borderRadius: radius.round, backgroundColor: colors.border, opacity: 0.4 },
+  stepInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
+  stepProgressNumber: { color: colors.primary, fontSize: 21, lineHeight: 28, fontWeight: '900', flex: 1 },
+  stepSymbolBadge: { color: colors.primary, fontSize: 24, lineHeight: 28, fontWeight: '900', backgroundColor: colors.primarySoft, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
+  progressBarTrack: { flexDirection: 'row', gap: 4, marginTop: 2 },
+  progressBarSegment: { flex: 1, height: 7, borderRadius: radius.round, backgroundColor: colors.border, opacity: 0.45 },
   progressBarSegmentActive: { backgroundColor: colors.primary, opacity: 1 },
-  stage: { marginTop: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, padding: spacing.md },
+  stage: { borderRadius: radius.md, backgroundColor: colors.surface, padding: spacing.md },
   stageLargeText: { paddingHorizontal: spacing.sm },
-  practiceTitle: { color: colors.text, fontSize: 26, lineHeight: 36, fontWeight: '900', textAlign: 'center' },
-  practiceDescription: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '700', textAlign: 'center', marginTop: spacing.sm },
-  practiceArea: { minHeight: 205, alignItems: 'center', justifyContent: 'center' },
-  tapTarget: { width: 172, minHeight: 142, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
-  doubleTapTarget: { width: 184, minHeight: 148, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  practiceTitle: { color: colors.text, fontSize: 26, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
+  practiceDescription: { color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '700', textAlign: 'center', marginTop: spacing.xs },
+  practiceArea: { minHeight: 185, alignItems: 'center', justifyContent: 'center' },
+  tapTarget: { width: 172, minHeight: 138, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  doubleTapTarget: { width: 184, minHeight: 144, borderRadius: radius.lg, backgroundColor: colors.coral, borderWidth: 4, borderColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   doubleTapFirstActive: { borderColor: colors.goldSoft, backgroundColor: colors.gold },
-  stepBadge: { marginTop: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.round, backgroundColor: 'rgba(0,0,0,0.25)' },
+  stepBadge: { marginTop: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.round, backgroundColor: 'rgba(0,0,0,0.3)' },
   stepBadgeText: { color: colors.surface, fontSize: 16, fontWeight: '900' },
-  holdTarget: { width: 190, minHeight: 156, borderRadius: 95, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  targetPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  holdTarget: { width: 195, minHeight: 150, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  targetPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   targetCompleted: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  tapSymbol: { color: colors.surface, fontSize: 40, lineHeight: 48 },
-  doubleTapSymbol: { color: colors.surface, fontSize: 36, lineHeight: 44, fontWeight: '900' },
-  holdSymbol: { color: colors.surface, fontSize: 35, lineHeight: 42 },
-  targetLabel: { color: colors.surface, fontSize: 20, lineHeight: 28, fontWeight: '900', textAlign: 'center' },
-  helpText: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', textAlign: 'center' },
-  successWrapper: { gap: spacing.sm, marginTop: spacing.sm },
+  tapSymbol: { color: colors.surface, fontSize: 38, lineHeight: 46 },
+  doubleTapSymbol: { color: colors.surface, fontSize: 34, lineHeight: 42, fontWeight: '900' },
+  holdSymbol: { color: colors.surface, fontSize: 34, lineHeight: 40 },
+  targetLabel: { color: colors.surface, fontSize: 20, lineHeight: 27, fontWeight: '900', textAlign: 'center' },
+  helpText: { color: colors.text, fontSize: 18, lineHeight: 25, fontWeight: '700', textAlign: 'center', marginTop: spacing.xs },
+  stepFeedbackText: { color: colors.primary, fontSize: 18, lineHeight: 25, fontWeight: '900', textAlign: 'center', marginTop: spacing.xs },
+  warningGuideText: { color: colors.coral, fontSize: 18, lineHeight: 25, fontWeight: '800', textAlign: 'center', marginTop: spacing.xs },
+  successWrapper: { gap: spacing.xs, marginTop: spacing.xs },
   success: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.goldSoft },
   successMark: { width: 34, height: 34, borderRadius: 17, color: colors.surface, backgroundColor: colors.primary, fontSize: 20, lineHeight: 34, fontWeight: '900', textAlign: 'center' },
-  successText: { flex: 1, color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: '800' },
+  successText: { flex: 1, color: colors.text, fontSize: 19, lineHeight: 26, fontWeight: '800' },
   retryButton: { marginTop: spacing.xs },
-  swipeArea: { minHeight: 210, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  swipeCard: { width: 155, minHeight: 120, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
-  swipeSymbol: { color: colors.surface, fontSize: 35, lineHeight: 42 },
-  swipeLabel: { color: colors.surface, fontSize: 20, lineHeight: 28, fontWeight: '900', textAlign: 'center' },
-  edgeArrow: { color: colors.primary, fontSize: 50, fontWeight: '600' },
-  movingArrow: { position: 'absolute', bottom: 7, alignSelf: 'center', left: '44%', color: colors.coral, fontSize: 31, fontWeight: '900' },
-  verticalSwipeArea: { minHeight: 230, overflow: 'hidden', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.xs },
-  verticalSwipeCard: { width: '85%', maxWidth: 220, minHeight: 110, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
-  verticalEdgeArrow: { color: colors.primary, fontSize: 32, fontWeight: '900', lineHeight: 32 },
-  movingVerticalArrow: { position: 'absolute', right: 16, alignSelf: 'center', color: colors.coral, fontSize: 31, fontWeight: '900' },
-  progressTrack: { width: '82%', height: 10, overflow: 'hidden', borderRadius: radius.round, backgroundColor: 'rgba(255,255,255,0.42)', marginTop: spacing.sm },
+  swipeArea: { minHeight: 190, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  swipeCard: { width: 155, minHeight: 118, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
+  swipeSymbol: { color: colors.surface, fontSize: 34, lineHeight: 40 },
+  swipeLabel: { color: colors.surface, fontSize: 19, lineHeight: 26, fontWeight: '900', textAlign: 'center' },
+  edgeArrow: { color: colors.primary, fontSize: 46, fontWeight: '600' },
+  movingArrow: { position: 'absolute', bottom: 4, alignSelf: 'center', left: '44%', color: colors.coral, fontSize: 28, fontWeight: '900' },
+  verticalSwipeArea: { minHeight: 220, overflow: 'hidden', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.xs },
+  verticalSwipeCard: { width: '88%', maxWidth: 230, minHeight: 112, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md, zIndex: 2 },
+  verticalBigArrow: { fontSize: 32, lineHeight: 36, fontWeight: '900' },
+  arrowActive: { color: colors.coral, opacity: 1 },
+  arrowInactive: { color: colors.primary, opacity: 0.3 },
+  progressTrack: { width: '85%', height: 10, overflow: 'hidden', borderRadius: radius.round, backgroundColor: 'rgba(255,255,255,0.42)', marginTop: spacing.xs },
   progressFill: { height: '100%', borderRadius: radius.round, backgroundColor: colors.goldSoft },
-  pinchContainer: { minHeight: 230, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, overflow: 'hidden' },
-  pinchCard: { width: 165, minHeight: 130, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
-  pinchCardLarge: { width: 175, minHeight: 135 },
-  pinchSymbol: { color: colors.surface, fontSize: 38, lineHeight: 46, fontWeight: '900' },
+  pinchContainer: { minHeight: 260, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, overflow: 'hidden' },
+  pinchCard: { width: 180, minHeight: 165, borderRadius: radius.lg, backgroundColor: colors.blue, borderWidth: 4, borderColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  pinchCardLarge: { width: 190, minHeight: 175 },
+  pinchSymbol: { color: colors.surface, fontSize: 36, lineHeight: 44, fontWeight: '900' },
   pinchLabel: { color: colors.surface, fontSize: 19, lineHeight: 26, fontWeight: '900', textAlign: 'center' },
-  pinchSubtext: { color: colors.surface, fontSize: 16, lineHeight: 22, fontWeight: '700', marginTop: 2, opacity: 0.9 },
-  pinchButtonRow: { marginTop: spacing.md, alignItems: 'center' },
-  zoomActionButton: { minHeight: 56, minWidth: 140, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  zoomActionButtonText: { color: colors.primary, fontSize: 19, lineHeight: 26, fontWeight: '900' },
-  navigationStack: { marginTop: spacing.md, gap: spacing.sm },
+  dotsDemoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.sm },
+  fingerDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  dotText: { fontSize: 18 },
+  dotsCenterArrow: { color: colors.goldSoft, fontSize: 16, fontWeight: '900' },
+  navigationStack: { marginTop: spacing.sm, gap: spacing.xs },
   navButton: { minHeight: 58 },
   completedCard: { padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', gap: spacing.md },
   completedIconWrapper: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
